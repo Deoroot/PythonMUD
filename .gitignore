@@ -1,0 +1,35 @@
+# Virtual environment (repo root — do NOT commit)
+.venv312/
+.venv/
+venv/
+env/
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+*.so
+
+# Distribution / packaging
+*.egg
+*.egg-info/
+dist/
+build/
+
+# Testing
+.pytest_cache/
+.coverage
+.tox
+nosetests.xml
+
+# Evennia runtime (covered more granularly inside helionvanta/.gitignore,
+# but belt-and-suspenders for anything at the root)
+*.db3
+*.log
+*.log.*
+*.pid
+*.restart
+
+# Editors
+.vscode/
+.idea/
+*.swp

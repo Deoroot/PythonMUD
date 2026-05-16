@@ -1,0 +1,926 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Helion Vanta — MUD Client</title>
+  <style>
+    /* ─── Reset & base ─────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #070a0d;
+      color: #b8c8d0;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 13px;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ─── Title bar ─────────────────────────────────────────────── */
+    #titlebar {
+      background: #0b1219;
+      border-bottom: 1px solid #172430;
+      padding: 5px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+      user-select: none;
+    }
+
+    #titlebar h1 {
+      font-size: 13px;
+      color: #30aadd;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+    }
+
+    #titlebar-right {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    #room-display {
+      font-size: 11px;
+      color: #5a8898;
+      font-style: italic;
+      max-width: 280px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    #conn-status {
+      font-size: 11px;
+      color: #cc3333;
+      letter-spacing: 1px;
+    }
+
+    #conn-status.connected { color: #33cc55; }
+
+    /* ─── Main layout ───────────────────────────────────────────── */
+    #main {
+      display: flex;
+      flex: 1;
+      min-height: 0;
+    }
+
+    /* ─── LEFT: Terminal pane ───────────────────────────────────── */
+    #terminal-pane {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-width: 0;
+      border-right: 1px solid #172430;
+    }
+
+    #output {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px 12px;
+      line-height: 1.55;
+      background: #060910;
+    }
+
+    #output .line {
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    /* ─── Stat bars ─────────────────────────────────────────────── */
+    #statbars {
+      background: #0b1219;
+      border-top: 1px solid #172430;
+      padding: 6px 10px;
+      display: flex;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+
+    .statbar-group {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .statbar-label {
+      font-size: 9px;
+      color: #3a6878;
+      margin-bottom: 3px;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+    }
+
+    .statbar-track {
+      height: 8px;
+      background: #0e1820;
+      border: 1px solid #1a2c3c;
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .statbar-fill {
+      height: 100%;
+      width: 100%;
+      transition: width 0.4s ease;
+      border-radius: 1px;
+    }
+
+    .statbar-hp  .statbar-fill { background: linear-gradient(90deg, #184a18, #28aa28); }
+    .statbar-sh  .statbar-fill { background: linear-gradient(90deg, #0a2e5a, #1a72cc); }
+    .statbar-st  .statbar-fill { background: linear-gradient(90deg, #4a3800, #c09018); }
+    .statbar-psi .statbar-fill { background: linear-gradient(90deg, #320850, #8822cc); }
+
+    .statbar-text {
+      font-size: 9px;
+      color: #5a8090;
+      text-align: right;
+      margin-top: 2px;
+    }
+
+    /* ─── Input row ─────────────────────────────────────────────── */
+    #inputrow {
+      display: flex;
+      background: #0b1219;
+      border-top: 1px solid #172430;
+      padding: 6px 10px;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+
+    #cmdinput {
+      flex: 1;
+      background: #050810;
+      color: #c0d0da;
+      border: 1px solid #1a2c3c;
+      border-radius: 2px;
+      padding: 4px 8px;
+      font-family: inherit;
+      font-size: 13px;
+      outline: none;
+      caret-color: #30aadd;
+    }
+
+    #cmdinput:focus { border-color: #204860; }
+
+    #sendbtn {
+      background: #0c1e30;
+      color: #30aadd;
+      border: 1px solid #1a3a5a;
+      border-radius: 2px;
+      padding: 4px 14px;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 11px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      flex-shrink: 0;
+    }
+
+    #sendbtn:hover { background: #142838; }
+    #sendbtn:active { background: #1c3448; }
+
+    /* ─── RIGHT pane ────────────────────────────────────────────── */
+    #right-pane {
+      width: 300px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      background: #060910;
+    }
+
+    /* ─── Map panel ─────────────────────────────────────────────── */
+    #map-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      border-bottom: 1px solid #172430;
+    }
+
+    #map-header {
+      background: #0b1219;
+      border-bottom: 1px solid #172430;
+      padding: 4px 10px;
+      font-size: 10px;
+      color: #30aadd;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+      user-select: none;
+    }
+
+    #map-area-label {
+      font-size: 9px;
+      color: #3a6878;
+      font-style: italic;
+      letter-spacing: 0;
+      text-transform: none;
+      max-width: 140px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    #map-canvas {
+      flex: 1;
+      width: 100%;
+      min-height: 0;
+      display: block;
+      cursor: crosshair;
+    }
+
+    /* ─── Numpad panel ──────────────────────────────────────────── */
+    #numpad-panel {
+      background: #0b1219;
+      border-top: 1px solid #172430;
+      padding: 8px 10px;
+      flex-shrink: 0;
+    }
+
+    #numpad-label {
+      font-size: 9px;
+      color: #2a4858;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+      user-select: none;
+    }
+
+    #numpad {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 4px;
+    }
+
+    .npbtn {
+      background: #0d1a24;
+      color: #7aaabb;
+      border: 1px solid #182a3a;
+      border-radius: 3px;
+      padding: 8px 4px;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 10px;
+      text-align: center;
+      user-select: none;
+      transition: background 0.1s, border-color 0.1s;
+    }
+
+    .npbtn:hover { background: #142230; border-color: #243a4e; color: #9abccc; }
+    .npbtn:active { background: #1a2e40; }
+
+    .npbtn .dir-abbr { font-size: 12px; font-weight: bold; display: block; line-height: 1.2; }
+    .npbtn .dir-num  { font-size: 8px; color: #3a5a6a; display: block; margin-top: 1px; }
+
+    /* Special button: look (center) */
+    .npbtn.look-btn { color: #6a9aaa; border-color: #172838; }
+    .npbtn.look-btn:hover { color: #8ab8cc; }
+
+    /* Clear map button */
+    .npbtn.util-btn { color: #3a5a6a; font-size: 9px; }
+    .npbtn.util-btn:hover { color: #5a7a88; background: #0d1a24; }
+
+    /* ─── Scrollbar ─────────────────────────────────────────────── */
+    #output::-webkit-scrollbar { width: 4px; }
+    #output::-webkit-scrollbar-track { background: #060910; }
+    #output::-webkit-scrollbar-thumb { background: #172430; border-radius: 2px; }
+    #output::-webkit-scrollbar-thumb:hover { background: #203040; }
+  </style>
+</head>
+<body>
+
+<!-- ─── Title bar ────────────────────────────────────────────────── -->
+<div id="titlebar">
+  <h1>Helion Vanta</h1>
+  <div id="titlebar-right">
+    <span id="room-display"></span>
+    <span id="conn-status">OFFLINE</span>
+  </div>
+</div>
+
+<!-- ─── Main layout ──────────────────────────────────────────────── -->
+<div id="main">
+
+  <!-- LEFT: Terminal -->
+  <div id="terminal-pane">
+    <div id="output"></div>
+
+    <div id="statbars">
+      <div class="statbar-group statbar-hp">
+        <div class="statbar-label">HP</div>
+        <div class="statbar-track"><div class="statbar-fill" id="bar-hp"></div></div>
+        <div class="statbar-text" id="txt-hp">—</div>
+      </div>
+      <div class="statbar-group statbar-sh">
+        <div class="statbar-label">Shield</div>
+        <div class="statbar-track"><div class="statbar-fill" id="bar-sh"></div></div>
+        <div class="statbar-text" id="txt-sh">—</div>
+      </div>
+      <div class="statbar-group statbar-st">
+        <div class="statbar-label">Stamina</div>
+        <div class="statbar-track"><div class="statbar-fill" id="bar-st"></div></div>
+        <div class="statbar-text" id="txt-st">—</div>
+      </div>
+      <div class="statbar-group statbar-psi">
+        <div class="statbar-label">PSI</div>
+        <div class="statbar-track"><div class="statbar-fill" id="bar-psi"></div></div>
+        <div class="statbar-text" id="txt-psi">—</div>
+      </div>
+    </div>
+
+    <div id="inputrow">
+      <input id="cmdinput" type="text" placeholder="Enter command…"
+             autocomplete="off" spellcheck="false">
+      <button id="sendbtn">Send</button>
+    </div>
+  </div>
+
+  <!-- RIGHT: Map + Numpad -->
+  <div id="right-pane">
+    <div id="map-panel">
+      <div id="map-header">
+        <span>Auto-Map</span>
+        <span id="map-area-label">no data</span>
+      </div>
+      <canvas id="map-canvas"></canvas>
+    </div>
+
+    <div id="numpad-panel">
+      <div id="numpad-label">Navigation</div>
+      <div id="numpad">
+        <!-- Row 1: NW  N  NE -->
+        <button class="npbtn" data-dir="nw" data-cmd="nw">
+          <span class="dir-abbr">NW</span><span class="dir-num">7</span>
+        </button>
+        <button class="npbtn" data-dir="n" data-cmd="n">
+          <span class="dir-abbr">N</span><span class="dir-num">8</span>
+        </button>
+        <button class="npbtn" data-dir="ne" data-cmd="ne">
+          <span class="dir-abbr">NE</span><span class="dir-num">9</span>
+        </button>
+        <!-- Row 2: W  Look  E -->
+        <button class="npbtn" data-dir="w" data-cmd="w">
+          <span class="dir-abbr">W</span><span class="dir-num">4</span>
+        </button>
+        <button class="npbtn look-btn" data-cmd="look">
+          <span class="dir-abbr">Look</span><span class="dir-num">5</span>
+        </button>
+        <button class="npbtn" data-dir="e" data-cmd="e">
+          <span class="dir-abbr">E</span><span class="dir-num">6</span>
+        </button>
+        <!-- Row 3: SW  S  SE -->
+        <button class="npbtn" data-dir="sw" data-cmd="sw">
+          <span class="dir-abbr">SW</span><span class="dir-num">1</span>
+        </button>
+        <button class="npbtn" data-dir="s" data-cmd="s">
+          <span class="dir-abbr">S</span><span class="dir-num">2</span>
+        </button>
+        <button class="npbtn" data-dir="se" data-cmd="se">
+          <span class="dir-abbr">SE</span><span class="dir-num">3</span>
+        </button>
+        <!-- Row 4: Up  Down  Clear -->
+        <button class="npbtn" data-dir="u" data-cmd="u">
+          <span class="dir-abbr">Up</span><span class="dir-num">+</span>
+        </button>
+        <button class="npbtn" data-dir="d" data-cmd="d">
+          <span class="dir-abbr">Down</span><span class="dir-num">−</span>
+        </button>
+        <button class="npbtn util-btn" id="clearbtn">
+          <span class="dir-abbr">CLR</span><span class="dir-num">map</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+
+// ================================================================
+// CONFIG
+// ================================================================
+const WS_URL = "ws://localhost:4002";
+
+// Direction → grid offset (grid units, +y = south on screen)
+const DIR_OFFSET = {
+  n:  { dx:  0, dy: -1 },
+  s:  { dx:  0, dy:  1 },
+  e:  { dx:  1, dy:  0 },
+  w:  { dx: -1, dy:  0 },
+  ne: { dx:  1, dy: -1 },
+  nw: { dx: -1, dy: -1 },
+  se: { dx:  1, dy:  1 },
+  sw: { dx: -1, dy:  1 },
+  u:  { dx:  0, dy: -2 },   // "up" rendered as a northern jump
+  d:  { dx:  0, dy:  2 },
+};
+
+// ================================================================
+// DOM refs
+// ================================================================
+const outputEl    = document.getElementById("output");
+const inputEl     = document.getElementById("cmdinput");
+const sendBtn     = document.getElementById("sendbtn");
+const statusEl    = document.getElementById("conn-status");
+const roomDisplay = document.getElementById("room-display");
+const areaLabel   = document.getElementById("map-area-label");
+const canvas      = document.getElementById("map-canvas");
+const ctx         = canvas.getContext("2d");
+
+// ================================================================
+// WebSocket
+// ================================================================
+let ws = null;
+
+function connect() {
+  statusEl.textContent = "CONNECTING";
+  statusEl.className   = "";
+
+  try {
+    ws = new WebSocket(WS_URL);
+  } catch (err) {
+    clientMsg(`WebSocket open failed: ${err.message}`, "#cc4444");
+    return;
+  }
+
+  ws.onopen = () => {
+    statusEl.textContent = "ONLINE";
+    statusEl.className   = "connected";
+    clientMsg("Connected to Helion Vanta. Login with: connect <name> <password>", "#30aadd");
+    // Send an empty text frame so Evennia registers the session
+    ws.send(JSON.stringify(["text", [""], {}]));
+  };
+
+  ws.onclose = () => {
+    statusEl.textContent = "OFFLINE";
+    statusEl.className   = "";
+    clientMsg("Connection closed. Refresh the page to reconnect.", "#cc6644");
+    ws = null;
+  };
+
+  ws.onerror = () => {
+    clientMsg("WebSocket error — is the server running on port 4002?", "#cc4444");
+  };
+
+  ws.onmessage = (ev) => {
+    let data;
+    try { data = JSON.parse(ev.data); } catch { return; }
+    handleMessage(data);
+  };
+}
+
+function sendCmd(cmd) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    clientMsg("Not connected.", "#cc4444");
+    return;
+  }
+  ws.send(JSON.stringify(["text", [cmd], {}]));
+}
+
+// ================================================================
+// Server → Client message dispatch
+// ================================================================
+function handleMessage(data) {
+  if (!Array.isArray(data) || data.length < 2) return;
+
+  const [msgtype, args, kwargs] = data;
+
+  switch (msgtype) {
+    case "text":
+    case "prompt": {
+      // args = ["<html text>", ...optionally more]
+      const text = Array.isArray(args) ? (args[0] ?? "") : "";
+      if (text !== "") addLine(text);
+      break;
+    }
+
+    case "room_update": {
+      const k = kwargs || {};
+      onRoomUpdate(k.room_key, k.display_name, k.area, k.planet, k.room_type);
+      break;
+    }
+
+    case "stats_update": {
+      const k = kwargs || {};
+      onStatsUpdate(k);
+      break;
+    }
+
+    // Silently ignore all other OOB messages (options, etc.)
+  }
+}
+
+// ================================================================
+// ANSI → HTML conversion
+// Raw \x1b[NNm escape sequences (used by overworld.py) are not
+// converted by Evennia's pipeline. This converter handles them
+// client-side. Palette matches oob.js so both clients look the same.
+// ================================================================
+const _ANSI_CSS = {
+  "0":  null,        // reset
+  "30": "#444",
+  "31": "#cc3c3c",   // dark red    — runoff, wasteland (generic)
+  "32": "#3db844",   // green       — scrubland (Helion)
+  "33": "#c4902a",   // amber       — dust flats (Helion), ancient ruins (Vanta)
+  "34": "#3a60c8",   // blue        — toxin/null sea (impassable)
+  "35": "#c040c8",   // magenta     — anomaly zone (Vanta)
+  "36": "#30bcbc",   // cyan        — roads, tradelane, industrial (Helion)
+  "37": "#b0b8c0",   // light grey  — shale ridge, shattered ground, obsidian
+  "90": "#555a60",   // dark grey   — mountains, asteroid debris, ruins
+  "91": "#ff5050",   // bright red  — wasteland (Helion)
+  "92": "#50e050",   // bright green — player @
+  "93": "#f0c030",   // gold        — settlements, clan outposts
+  "94": "#5060e0",   // bright blue (unused in terrain)
+  "95": "#f050f8",   // bright magenta — crystal spires (Vanta)
+  "96": "#30f0f8",   // bright cyan  — trade road (Helion), glass dunes/carved path (Vanta)
+  "97": "#f0f4f8",   // bright white — named locations *
+};
+
+function ansiToHtml(text) {
+  // Split on every ESC[ ... m sequence; odd indices are the captured code.
+  const parts = text.split(/\x1b\[([0-9;]*)m/);
+  if (parts.length === 1) return text; // no ANSI codes — pass through unchanged
+
+  let out   = "";
+  let depth = 0;
+
+  for (let i = 0; i < parts.length; i++) {
+    if (i % 2 === 0) {
+      out += parts[i];
+    } else {
+      // A single escape may carry multiple codes separated by ';' (e.g. "1;32")
+      for (const code of (parts[i] || "0").split(";")) {
+        if (code === "0" || code === "") {
+          while (depth > 0) { out += "</span>"; depth--; }
+        } else {
+          const color = _ANSI_CSS[code];
+          if (color) { out += `<span style="color:${color}">`; depth++; }
+        }
+      }
+    }
+  }
+  while (depth > 0) { out += "</span>"; depth--; }
+  return out;
+}
+
+// ================================================================
+// Evennia class-span → inline style conversion
+// Evennia's server converts |r, |g etc. markup to
+// <span class="color-NNN"> HTML before sending over WebSocket.
+// Our client doesn't load webclient.css, so we convert those class
+// spans to inline styles here. Colors match Evennia's webclient.css
+// (xterm256 palette) so both clients show the same markup colours.
+// ================================================================
+const _EVENNIA_CLASS_COLOR = {
+  "color-000": "#000000",
+  "color-001": "#800000",   // |R dark red
+  "color-002": "#008000",   // |G dark green
+  "color-003": "#808000",   // |Y dark yellow
+  "color-004": "#000080",   // |B dark blue
+  "color-005": "#800080",   // |M dark magenta
+  "color-006": "#008080",   // |C dark cyan
+  "color-007": "#c0c0c0",   // |W light grey
+  "color-008": "#808080",   // |x dark grey
+  "color-009": "#ff5050",   // |r bright red   (hostile mobs)
+  "color-010": "#50e050",   // |g bright green  (friendly NPCs)
+  "color-011": "#f0d050",   // |y bright yellow (passive mobs, warnings)
+  "color-012": "#5555ff",   // |b bright blue
+  "color-013": "#ff55ff",   // |m bright magenta
+  "color-014": "#55ffff",   // |c bright cyan
+  "color-015": "#ffffff",   // |w white
+  "color-102": "#7a9aaa",   // default/normal text (Evennia fallback)
+};
+
+function evenniaClassToInline(html) {
+  // Replace <span class="color-NNN"> or <span class='color-NNN'> with inline style.
+  // Leaves any other class attributes untouched.
+  return html.replace(/<span class=["'](color-\d+)["']/g, (match, cls) => {
+    const color = _EVENNIA_CLASS_COLOR[cls];
+    return color ? `<span style="color:${color}"` : match;
+  });
+}
+
+// ================================================================
+// Terminal output
+// ================================================================
+function addLine(html) {
+  const div = document.createElement("div");
+  div.className = "line";
+  // 1. Convert Evennia class-based spans (|r, |g markup) to inline styles.
+  // 2. Convert raw \x1b[NNm ANSI codes (overworld map) to inline styles.
+  div.innerHTML = ansiToHtml(evenniaClassToInline(html));
+  outputEl.appendChild(div);
+  outputEl.scrollTop = outputEl.scrollHeight;
+}
+
+function clientMsg(text, color) {
+  const div = document.createElement("div");
+  div.className = "line";
+  div.style.color = color || "#5a8898";
+  div.textContent = `[client] ${text}`;
+  outputEl.appendChild(div);
+  outputEl.scrollTop = outputEl.scrollHeight;
+}
+
+// ================================================================
+// Stat bars
+// ================================================================
+function onStatsUpdate(k) {
+  setBar("hp",  k.hp,  k.hp_max);
+  setBar("sh",  k.shield,  k.shield_max);
+  setBar("st",  k.stamina, k.stamina_max);
+  setBar("psi", k.psi,     k.psi_max);
+}
+
+function setBar(id, cur, max) {
+  if (max == null || max <= 0) return;
+  const pct = Math.min(100, Math.max(0, (cur / max) * 100));
+  document.getElementById(`bar-${id}`).style.width = pct + "%";
+  document.getElementById(`txt-${id}`).textContent  = `${cur}/${max}`;
+}
+
+// ================================================================
+// Auto-Mapper state
+// ================================================================
+// rooms[area][room_key] = { gx, gy, display_name, room_type }
+// edges[area] = [ { from, to, dir } ]
+const mapRooms = {};
+const mapEdges = {};
+
+let currentRoom = null;  // { key, area, gx, gy, display_name }
+let pendingDir  = null;  // direction recorded just before a move command is sent
+
+function recordDir(dir) {
+  pendingDir = dir;
+}
+
+function onRoomUpdate(roomKey, displayName, area, planet, roomType) {
+  if (!roomKey || !area) { pendingDir = null; return; }
+
+  // Snapshot previous position before mutating state
+  const prevRoom = currentRoom ? { ...currentRoom } : null;
+  const prevArea = prevRoom ? prevRoom.area : null;
+
+  // Ensure data structures exist for this area
+  if (!mapRooms[area]) mapRooms[area] = {};
+  if (!mapEdges[area]) mapEdges[area] = [];
+
+  const areaRooms = mapRooms[area];
+
+  if (!areaRooms[roomKey]) {
+    // First time seeing this room — place it on the grid
+    let gx = 0, gy = 0;
+
+    if (prevRoom && prevArea === area && pendingDir && DIR_OFFSET[pendingDir]) {
+      // Normal movement within the same area
+      gx = prevRoom.gx + DIR_OFFSET[pendingDir].dx;
+      gy = prevRoom.gy + DIR_OFFSET[pendingDir].dy;
+    } else if (Object.keys(areaRooms).length > 0) {
+      // Area transition or no direction — place below existing cluster
+      const vals = Object.values(areaRooms);
+      const midX = Math.round((Math.min(...vals.map(r => r.gx)) + Math.max(...vals.map(r => r.gx))) / 2);
+      const maxY = Math.max(...vals.map(r => r.gy));
+      gx = midX;
+      gy = maxY + 2;
+    }
+
+    areaRooms[roomKey] = { gx, gy, display_name: displayName || roomKey, room_type: roomType || "" };
+  } else {
+    // Room already known — update display name if we now have it
+    if (displayName) areaRooms[roomKey].display_name = displayName;
+  }
+
+  // Record the traversed edge (if moving within the same area)
+  if (prevRoom && prevArea === area && pendingDir && prevRoom.key !== roomKey) {
+    const edges = mapEdges[area];
+    const dup = edges.some(e => e.from === prevRoom.key && e.to === roomKey);
+    if (!dup) edges.push({ from: prevRoom.key, to: roomKey, dir: pendingDir });
+  }
+
+  // Update current state
+  currentRoom = { key: roomKey, area, ...areaRooms[roomKey], display_name: displayName || areaRooms[roomKey].display_name };
+  pendingDir  = null;
+
+  // Update UI labels
+  areaLabel.textContent   = area;
+  roomDisplay.textContent = displayName || roomKey;
+
+  drawMap();
+}
+
+// ================================================================
+// Map rendering
+// ================================================================
+const CELL      = 30;       // pixels per grid step
+const ROOM_R    = 7;        // room node radius
+const PAD       = ROOM_R * 2; // canvas margin
+
+const C = {
+  bg:         "#060910",
+  edge:       "#1a3a5a",
+  edgeReturn: "#0e2438",
+  roomFill:   "#0d1e2e",
+  roomStroke: "#254a6a",
+  curFill:    "#00aaee",
+  curStroke:  "#44ccff",
+  label:      "#5a9aaa",
+  empty:      "#2a4050",
+};
+
+function drawMap() {
+  // Match canvas resolution to CSS size
+  const W = canvas.offsetWidth  || 300;
+  const H = canvas.offsetHeight || 300;
+  canvas.width  = W;
+  canvas.height = H;
+
+  ctx.fillStyle = C.bg;
+  ctx.fillRect(0, 0, W, H);
+
+  const area  = currentRoom ? currentRoom.area : null;
+  const rooms = area ? (mapRooms[area] || {}) : {};
+  const edges = area ? (mapEdges[area] || []) : [];
+
+  if (Object.keys(rooms).length === 0) {
+    ctx.fillStyle = C.empty;
+    ctx.font      = "11px 'Courier New'";
+    ctx.textAlign = "center";
+    ctx.fillText("— no map data —", W / 2, H / 2);
+    return;
+  }
+
+  // Centre the view on the current room (or bounding-box centre if no current)
+  const originGX = currentRoom ? currentRoom.gx : avgOf(Object.values(rooms), r => r.gx);
+  const originGY = currentRoom ? currentRoom.gy : avgOf(Object.values(rooms), r => r.gy);
+
+  const cx = W / 2;
+  const cy = H / 2;
+
+  function toScreen(gx, gy) {
+    return { x: cx + (gx - originGX) * CELL, y: cy + (gy - originGY) * CELL };
+  }
+
+  // --- Draw edges ---
+  for (const edge of edges) {
+    const fr = rooms[edge.from];
+    const to = rooms[edge.to];
+    if (!fr || !to) continue;
+
+    const p0 = toScreen(fr.gx, fr.gy);
+    const p1 = toScreen(to.gx, to.gy);
+
+    // Cull edges entirely off-canvas
+    if (bothOffScreen(p0, p1, W, H)) continue;
+
+    ctx.strokeStyle = C.edge;
+    ctx.lineWidth   = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(p0.x, p0.y);
+    ctx.lineTo(p1.x, p1.y);
+    ctx.stroke();
+  }
+
+  // --- Draw rooms ---
+  for (const [key, room] of Object.entries(rooms)) {
+    const { x, y } = toScreen(room.gx, room.gy);
+    const isCur    = currentRoom && currentRoom.key === key;
+
+    // Cull off-canvas nodes (with a small margin)
+    if (x < -PAD || x > W + PAD || y < -PAD || y > H + PAD) continue;
+
+    ctx.beginPath();
+    ctx.arc(x, y, ROOM_R, 0, Math.PI * 2);
+    ctx.fillStyle   = isCur ? C.curFill   : C.roomFill;
+    ctx.fill();
+    ctx.strokeStyle = isCur ? C.curStroke : C.roomStroke;
+    ctx.lineWidth   = isCur ? 2.5 : 1.5;
+    ctx.stroke();
+
+    // Label only the current room (avoids clutter)
+    if (isCur) {
+      ctx.fillStyle = C.label;
+      ctx.font      = "9px 'Courier New'";
+      ctx.textAlign = "center";
+      const label   = room.display_name || key;
+      ctx.fillText(label, x, y + ROOM_R + 11);
+    }
+  }
+}
+
+function avgOf(arr, fn) {
+  if (!arr.length) return 0;
+  return arr.reduce((s, v) => s + fn(v), 0) / arr.length;
+}
+
+function bothOffScreen(p0, p1, W, H) {
+  const M = CELL * 2;
+  return (
+    Math.max(p0.x, p1.x) < -M ||
+    Math.min(p0.x, p1.x) > W + M ||
+    Math.max(p0.y, p1.y) < -M ||
+    Math.min(p0.y, p1.y) > H + M
+  );
+}
+
+function clearMap() {
+  Object.keys(mapRooms).forEach(k => delete mapRooms[k]);
+  Object.keys(mapEdges).forEach(k => delete mapEdges[k]);
+  currentRoom = null;
+  pendingDir  = null;
+  areaLabel.textContent   = "no data";
+  roomDisplay.textContent = "";
+  drawMap();
+}
+
+// Redraw whenever the canvas panel is resized
+new ResizeObserver(() => drawMap()).observe(canvas);
+
+// ================================================================
+// Input / command history
+// ================================================================
+let history = [];
+let histIdx = -1;
+
+function send() {
+  const raw = inputEl.value;
+  const cmd = raw.trim();
+  if (!cmd) return;
+
+  history.unshift(cmd);
+  if (history.length > 200) history.pop();
+  histIdx = -1;
+  inputEl.value = "";
+
+  sendCmd(cmd);
+}
+
+sendBtn.addEventListener("click", () => { send(); inputEl.focus(); });
+
+inputEl.addEventListener("keydown", (e) => {
+  // ── History ──
+  if (e.key === "ArrowUp") {
+    e.preventDefault();
+    if (histIdx < history.length - 1) inputEl.value = history[++histIdx];
+    return;
+  }
+  if (e.key === "ArrowDown") {
+    e.preventDefault();
+    if (histIdx > 0) { inputEl.value = history[--histIdx]; }
+    else             { histIdx = -1; inputEl.value = ""; }
+    return;
+  }
+
+  // ── Send on Enter ──
+  if (e.key === "Enter") { send(); return; }
+
+  // ── Numpad (only when input field is empty to avoid eating numbers) ──
+  if (inputEl.value.length === 0 && e.code.startsWith("Numpad")) {
+    const numMap = {
+      Numpad8: "n",  Numpad2: "s",  Numpad4: "w",  Numpad6: "e",
+      Numpad7: "nw", Numpad9: "ne", Numpad1: "sw", Numpad3: "se",
+      Numpad5: "look",
+      Numpad0: "u",  NumpadDecimal: "d",
+      NumpadAdd: "u", NumpadSubtract: "d",
+    };
+    const dir = numMap[e.code];
+    if (dir) {
+      e.preventDefault();
+      if (dir !== "look") recordDir(dir);
+      sendCmd(dir);
+    }
+  }
+});
+
+// ── Numpad buttons ──────────────────────────────────────────────
+document.querySelectorAll(".npbtn[data-cmd]").forEach(btn => {
+  btn.addEventListener("click", () => {
+    const dir = btn.dataset.dir;   // may be undefined for look/util buttons
+    const cmd = btn.dataset.cmd;
+    if (dir) recordDir(dir);
+    sendCmd(cmd);
+    inputEl.focus();
+  });
+});
+
+document.getElementById("clearbtn").addEventListener("click", () => {
+  clearMap();
+  inputEl.focus();
+});
+
+// ================================================================
+// Boot
+// ================================================================
+connect();
+inputEl.focus();
+drawMap();
+</script>
+</body>
+</html>
