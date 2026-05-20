@@ -1,0 +1,10 @@
+{
+  "server": {
+    "host": "localhost",
+    "port": 4000
+  },
+  "audio": {
+    "sfx_volume":   0.7,
+    "music_volume": 0.5
+  }
+}
