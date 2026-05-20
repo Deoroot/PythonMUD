@@ -4,20 +4,18 @@ title Helion Vanta — Dev Launcher
 
 set REPO=%~dp0
 set PYTHON=%REPO%.venv312\Scripts\python.exe
-set EVENNIA=%REPO%.venv312\Scripts\evennia
-set GAME_DIR=%REPO%helionvanta
 set CLIENT_DIR=%REPO%helionvanta_client
 
 echo ============================================================
 echo   HELION VANTA — Dev Launcher
 echo   1) Starts MUD server in a background window
-echo   2) Waits 5 seconds for it to boot
+echo   2) Waits 12 seconds for Evennia to boot
 echo   3) Starts the pygame client in this window
 echo ============================================================
 echo.
 
 if not exist "%PYTHON%" (
-    echo [ERROR] venv not found.
+    echo [ERROR] venv not found at %PYTHON%
     echo Run:  python -m venv .venv312  ^&^&  .venv312\Scripts\pip install -r requirements.txt
     pause & exit /b 1
 )
@@ -35,16 +33,29 @@ if errorlevel 1 (
     echo.
 )
 
-:: ── Start server in a separate window ────────────────────────────────────
+:: ── Start server in a separate window ─────────────────────────────────────
+:: Note: double-double-quotes around the path handle spaces in the repo path.
 echo [1/3] Starting MUD server in background window...
-start "Helion Vanta — MUD Server" cmd /k ^
-    "cd /d "%GAME_DIR%" && "%PYTHON%" "%EVENNIA%" start --log"
+start "Helion Vanta — MUD Server" cmd /k ""%REPO%start_server.bat""
 
-:: ── Wait for Evennia to boot ──────────────────────────────────────────────
-echo [2/3] Waiting 6 seconds for server to boot...
-timeout /t 6 /nobreak >nul
+:: ── Wait for Evennia to boot ───────────────────────────────────────────────
+echo [2/3] Waiting 12 seconds for server to boot...
+timeout /t 12 /nobreak
 
-:: ── Launch client ─────────────────────────────────────────────────────────
+:: ── Quick connectivity check ──────────────────────────────────────────────
+netstat -an | find "0.0.0.0:4000" >nul 2>&1
+if errorlevel 1 (
+    echo.
+    echo [WARN] Port 4000 does not appear to be open yet.
+    echo        The server may still be loading. You can try connecting
+    echo        manually from the login panel once it is ready.
+    echo.
+) else (
+    echo [OK]   Server is listening on port 4000.
+    echo.
+)
+
+:: ── Launch client ──────────────────────────────────────────────────────────
 echo [3/3] Launching pygame client...
 echo.
 cd /d "%CLIENT_DIR%"
@@ -52,5 +63,5 @@ cd /d "%CLIENT_DIR%"
 
 echo.
 echo Client closed.
-echo (The server window keeps running — use stop_server.bat to shut it down.)
+echo (Server window is still running — use stop_server.bat to shut it down.)
 pause
