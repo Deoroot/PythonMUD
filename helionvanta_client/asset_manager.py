@@ -30,8 +30,9 @@ import pygame
 
 
 class AssetManager:
-    def __init__(self, assets_dir: str):
-        self.assets_dir = assets_dir
+    def __init__(self, assets_dir: str, writable_assets_dir: str | None = None):
+        self.assets_dir          = assets_dir
+        self.writable_assets_dir = writable_assets_dir or assets_dir
         self.boot_log: list[str] = []
         self._image_cache: dict[str, pygame.Surface | None] = {}
         self._sound_cache: dict[str, pygame.mixer.Sound | None] = {}
@@ -48,6 +49,17 @@ class AssetManager:
     def _log(self, msg: str):
         self.boot_log.append(msg)
         print(f"[ASSET] {msg}", flush=True)
+
+    # ------------------------------------------------------------------ #
+    # Raw file access (used for cursor, etc.)
+    # ------------------------------------------------------------------ #
+
+    def open_file(self, rel_path: str):
+        """Return the full path string if the file exists, else None."""
+        full = os.path.join(self.assets_dir, rel_path)
+        if os.path.exists(full):
+            return full
+        return None
 
     # ------------------------------------------------------------------ #
     # Config
